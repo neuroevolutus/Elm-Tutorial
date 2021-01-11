@@ -91,11 +91,14 @@ tickInterval =
     10
 
 
-type RollingState = Rolling | Landed
+type RollingState
+    = Rolling
+    | Landed
+
 
 type alias Die =
     { face : Int
-    , rollingState: RollingState
+    , rollingState : RollingState
     , rollingCountdown : TimeInMillis
     , rollingCountdownStart : TimeInMillis
     , generator : Random.Generator Int
@@ -184,7 +187,7 @@ update msg model =
                                 )
 
                         else
-                            Just ( Model ( Array.set n { die | rollingState = Landed } model.dice), Cmd.none)
+                            Just ( Model (Array.set n { die | rollingState = Landed } model.dice), Cmd.none )
                     )
                 |> withDefault (Cmd.Extra.pure model)
 
