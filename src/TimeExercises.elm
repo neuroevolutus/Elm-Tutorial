@@ -9,24 +9,21 @@ module TimeExercises exposing (..)
 --   https://elm-lang.org/examples/clock
 --
 
+import Array exposing (Array)
 import Basics exposing (Never, cos, modBy, never, round, sin, toFloat, turns)
 import Browser
-import Browser.Events exposing (onAnimationFrame)
 import Cmd.Extra exposing (pure)
-import Debug exposing (log)
 import Extras.Core exposing (flip)
 import Html exposing (Html, button, div, h1, map, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 import Html.Lazy exposing (lazy)
-import Iso8601 exposing (fromTime)
-import List exposing (head)
-import Maybe exposing (withDefault)
+import Maybe exposing (Maybe(..))
 import Platform.Sub exposing (Sub)
 import Svg exposing (Svg, animate, line, svg)
-import Svg.Attributes exposing (attributeName, calcMode, dur, height, keySplines, repeatCount, stroke, to, values, width, x1, x2, y1, y2)
+import Svg.Attributes exposing (attributeName, height, stroke, width, x1, x2, y1, y2)
 import Task
-import Time exposing (millisToPosix, posixToMillis)
+import Time exposing (Posix, Zone, millisToPosix, posixToMillis, toHour, toMinute, toSecond)
 import Tuple exposing (first, second)
 
 
@@ -45,18 +42,187 @@ main =
 
 
 -- MODEL
+{- The model for the analog clock.
+   `animationStartOffsetInMillis` represents the number of milliseconds relative
+   to the time at which a particular second `x` has been reached the animation for
+   the second hand transitioning to second `x` should be played. This value can be
+   negative, positive or zero but should have absolute value less than zero.
+   `animationKeyTimesInMillis` is a sorted array of values ranging from 0 to the
+   duration of the animation (of the second hand's transition from one second to
+   the next). This array should always have the values 0 and the duration of the
+   animation. Any extra intermediate values control the smoothness with which the
+   second hand moves from one second to the next. The duration of the animation
+   should not exceed one thousand milliseconds.
+-}
 
 
 type alias AnalogClock =
-    { timeOfLastAnimatedSecondInMillis : Int
-    , lastAnimatedSecondDurationInMillis : Int
-    , secondHandTransitionTimeInMillis : Int
+    { animationKeyTimesInMillis : Array Int
+    , animationStartOffsetInMillis : Int
+    , animationDurationInMillis : Int
+    , numKeyTimes : Int
+    , baseSecondCorrectionsInMillis : Array ( Int, Int )
     }
+
+{-The binarySearchBy function in which the function used to transform an 
+arbitrary element of an array into a comparable number is simply the identity 
+function (that is to say, all the elements of the array are already comparable 
+numbers).
+-}
+
+binarySearch : Int -> number -> Array number -> ( Maybe Int, Int )
+binarySearch =
+    binarySearchBy identity
+
+{-A binary search.
+Given a function to transform an arbitrary element of an array into a  
+comparable number, the array length, a number to search for, and the input  
+array, the function returns a tuple of `Maybe Int` and `Int`. The first element 
+of the tuple will be a `Just` variant containing the index of the element that 
+yields the  desired number if and only if such an element exists in the array. 
+If the first  element of the tuple is a `Nothing` variant, the second element 
+of the tuple will a) contain the greatest index containing an element that 
+yields an number less than the desired number, b) contain 0 if  the desired 
+number is less than the smallest number yielded by any element in the array or 
+c) contain the maximum index  of the array if the desired number is greater 
+than the greatest number yielded by any element in the array.
+The implementation is adapted from the F# code in the Japanese binary search 
+Wikipedia article:
+<https://ja.wikipedia.org/wiki/%E4%BA%8C%E5%88%86%E6%8E%A2%E7%B4%A2>.
+-}
+
+binarySearchBy : (a -> number) -> Int -> number -> Array a -> ( Maybe Int, Int )
+binarySearchBy f len value array =
+    let
+        binarySearchHelper minIndex maxIndex =
+            if maxIndex < minIndex then
+                ( Nothing, clamp 0 (len - 1) maxIndex )
+
+            else
+                let
+                    c =
+                        minIndex + (maxIndex - minIndex) // 2
+
+                    arrayAtC =
+                        Array.get c array
+                            |> (\x ->
+                                    case x of
+                                        Just n ->
+                                            f n
+
+                                        Nothing ->
+                                            0
+                               )
+                in
+                if arrayAtC > value then
+                    binarySearchHelper minIndex (c - 1)
+
+                else if arrayAtC < value then
+                    binarySearchHelper (c + 1) maxIndex
+
+                else
+                    ( Just c, 0 )
+    in
+    binarySearchHelper 0 (len - 1)
+
+
+
+{- The default number of milliseconds relative to the beginning of a new second at
+   which the animation of the second hand's transition to that new second should
+   start.
+-}
+
+
+defaultAnimationOffsetInMillis : Int
+defaultAnimationOffsetInMillis =
+    -625
+
+
+
+{- The first value in the returned tuple are the default key times describing the
+   animation of the second hand from one  second to the next. The spacing of the
+   key times controls the smoothness of the  overall animation. The largest key
+   time should be no larger than one thousand  milliseconds. The second value in
+   the returned tuple is the length of the array of key values.
+-}
+
+
+defaultAnimationKeyTimes : ( Array Int, Int )
+defaultAnimationKeyTimes =
+    ( List.range 0 25 |> List.map (\n -> n ^ 2) |> List.map ((-) 625) |> List.sort |> Array.fromList, 26 )
+
+getTimeWithinAnimation : Int -> Int -> Int
+getTimeWithinAnimation timeInMillis animationStartOffsetInMillis =
+    let
+        midSecondTimeInMillis = modBy 1000 timeInMillis
+    in
+        modBy 1000 (midSecondTimeInMillis - animationStartOffsetInMillis)
+
+getAnimationKeyTimeIndexHelper : Int -> Int -> Int -> Array Int -> (Maybe Int, Int)
+getAnimationKeyTimeIndexHelper timeInMillis animationStartOffsetInMillis numKeyTimes keyTimes =
+    binarySearch numKeyTimes (getTimeWithinAnimation timeInMillis animationStartOffsetInMillis) keyTimes
+
+{- Given a model,  the function returns the index (into the array of animation key
+   times stored by the model) of the largest key time that is less than the
+   current time stored by the model.
+-}
+
+getAnimationKeyTimeIndex : Model -> ( Maybe Int, Int )
+getAnimationKeyTimeIndex model =
+    getAnimationKeyTimeIndexHelper (posixToMillis model.time) model.analogClock.animationStartOffsetInMillis (second defaultAnimationKeyTimes) (first defaultAnimationKeyTimes)
+
+
+getBaseSecondCorrectionsInMillis : Int -> Array Int -> Array ( Int, Int )
+getBaseSecondCorrectionsInMillis animationStartOffset animationKeyTimes =
+    let
+        generateCorrections timeCorrectionsInMillis startOffsetInMillis lastAnimationKeyTime currentTimeCorrectionInMillis remainingAnimationKeyTimes =
+            case remainingAnimationKeyTimes of
+                [] ->
+                    timeCorrectionsInMillis
+
+                x :: xs ->
+                    let
+                        nonZeroCurrentTimeInMillis =
+                            modBy 1000 (startOffsetInMillis + x)
+
+                        nonZeroLastAnimationTime =
+                            modBy 1000 (startOffsetInMillis + lastAnimationKeyTime)
+                    in
+                    let
+                        newTimeCorrectionInMillis =
+                            if nonZeroCurrentTimeInMillis < nonZeroLastAnimationTime then
+                                currentTimeCorrectionInMillis - 1000
+
+                            else
+                                currentTimeCorrectionInMillis
+                    in
+                    generateCorrections (Array.push ( x, newTimeCorrectionInMillis ) timeCorrectionsInMillis) startOffsetInMillis x newTimeCorrectionInMillis xs
+        initialCorrection = 
+            (if animationStartOffset <= 0 then
+                0
+             else
+                -1000
+            )
+    in
+    generateCorrections (Array.fromList [(0, initialCorrection)])
+        animationStartOffset
+        0
+        initialCorrection
+        (animationKeyTimes
+            |> Array.toList
+            |> List.sort
+            |> \x -> case List.tail x of
+                Just l -> l
+                Nothing -> []
+        )
+        |> Array.toList
+        |> List.sortBy first
+        |> Array.fromList
 
 
 type alias Model =
-    { zone : Time.Zone
-    , time : Time.Posix
+    { zone : Zone
+    , time : Posix
     , timeState : TimeState
     , timeDisplayState : TimeDisplayState
     , subscriptions : List (Sub Msg)
@@ -66,7 +232,23 @@ type alias Model =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Model Time.utc (Time.millisToPosix 1000) Running Undisplayable [ redrawSub, timeSub ] (AnalogClock 0 0 500)
+    let
+        keyTimesArrayandLength =
+            defaultAnimationKeyTimes
+
+        keyTimes =
+            first keyTimesArrayandLength
+
+        numKeyTimes =
+            second keyTimesArrayandLength
+
+        animationDuration =
+            Array.get (numKeyTimes - 1) keyTimes |> Maybe.withDefault 0
+
+        baseSecondCorrections =
+            getBaseSecondCorrectionsInMillis defaultAnimationOffsetInMillis keyTimes
+    in
+    ( Model Time.utc (millisToPosix 1000) Running Undisplayable [ timeSub ] (AnalogClock keyTimes defaultAnimationOffsetInMillis animationDuration numKeyTimes baseSecondCorrections)
     , Task.perform AdjustTimeZone Time.here
     )
 
@@ -89,84 +271,16 @@ updateTimeState : Model -> ( Model, Cmd Msg )
 updateTimeState model =
     case model.timeState of
         Running ->
-            pure { model | timeState = Paused, subscriptions = [ redrawSub ] }
+            pure { model | timeState = Paused, subscriptions = [] }
 
         Paused ->
-            pure { model | timeState = Running, subscriptions = [ redrawSub, timeSub ] }
+            pure { model | timeState = Running, subscriptions = [ timeSub ] }
 
 
 type Msg
-    = Tick Time.Posix
-    | AdjustTimeZone Time.Zone
+    = Tick Posix
+    | AdjustTimeZone Zone
     | ToggleTime
-    | Redraw
-
-
-roundUpExpensive : Float -> Float -> Float
-roundUpExpensive a b =
-    let
-        c =
-            round a
-
-        d =
-            round b
-
-        e =
-            modBy d c
-
-        f =
-            d - e
-
-        e2 =
-            e ^ 2
-
-        f2 =
-            f ^ 2
-
-        g =
-            min e2 f2
-
-        h =
-            (g - f2) // (e2 - f2) * e
-
-        j =
-            max (1 - (e2 - f2) ^ 2) 0
-
-        k =
-            (g - e2) // (f2 - e2) * f + j * f
-
-        m =
-            c - h + k
-    in
-    toFloat m
-
-
-updateAnalogClock : Model -> Model
-updateAnalogClock model =
-    let
-        timeInMillis =
-            posixToMillis model.time
-
-        clock =
-            model.analogClock
-
-        midSecondTimeInMillis =
-            modBy 1000 timeInMillis
-
-        changeSecond =
-            clock.timeOfLastAnimatedSecondInMillis + clock.lastAnimatedSecondDurationInMillis < timeInMillis && (midSecondTimeInMillis > clock.secondHandTransitionTimeInMillis)
-
-        newAnimatedSecond =
-            timeInMillis
-
-        newDuration =
-            1000 - midSecondTimeInMillis
-    in
-    if changeSecond then
-        { model | analogClock = { clock | timeOfLastAnimatedSecondInMillis = newAnimatedSecond, lastAnimatedSecondDurationInMillis = newDuration } }
-
-    else
-        model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -185,9 +299,6 @@ update msg model =
         ToggleTime ->
             updateTimeState model
 
-        Redraw ->
-            Cmd.Extra.pure (updateAnalogClock model)
-
 
 
 -- SUBSCRIPTIONS
@@ -196,11 +307,6 @@ update msg model =
 timeSub : Sub Msg
 timeSub =
     Time.every 50 Tick
-
-
-redrawSub : Sub Msg
-redrawSub =
-    onAnimationFrame (always Redraw)
 
 
 subscriptions : Model -> Sub Msg
@@ -222,25 +328,16 @@ getTimeToggleText model =
             "Pause"
 
 
-getHour : Model -> Int
-getHour model =
-    Time.toHour model.zone model.time
-
-
-getMinute : Model -> Int
-getMinute model =
-    Time.toMinute model.zone model.time
-
-
-getSecond : Model -> Int
-getSecond model =
-    Time.toSecond model.zone model.time
+getTimeAttribute : (Zone -> Posix -> Int) -> Model -> Int
+getTimeAttribute f model =
+    f model.zone model.time
 
 
 getTime : Model -> String
 getTime model =
-    List.map ((|>) model) [ getHour, getMinute, getSecond ]
+    List.map (flip getTimeAttribute model) [ toHour, toMinute, toSecond ]
         |> List.map String.fromInt
+        |> List.map (String.padLeft 2 '0')
         |> String.join ":"
 
 
@@ -260,101 +357,74 @@ viewDigitalClock model =
         ]
 
 
-interleaveHelper : Bool -> List a -> List a -> List a -> List a
-interleaveHelper b result list1 list2 =
-    if b then
-        case list1 of
-            [] ->
-                List.append result list2
-
-            x :: xs ->
-                interleaveHelper False (List.append result [ x ]) xs list2
-
-    else
-        case list2 of
-            [] ->
-                List.append result list1
-
-            x :: xs ->
-                interleaveHelper True (List.append result [ x ]) list1 xs
-
-
-interleave : List a -> List a -> List a
-interleave list1 list2 =
-    interleaveHelper True [] list1 list2
-
-
 viewAnalogClock : Model -> Html Never
 viewAnalogClock model =
     let
-        duration =
-            10
+        clock =
+            model.analogClock
 
-        durStr =
-            duration |> String.fromInt |> flip String.append "s"
-
-        xPercentages =
-            [ 0.5, 0.95 ] |> List.map (flip (/) duration) |> List.map ((*) (toFloat model.analogClock.lastAnimatedSecondDurationInMillis)) |> List.map (flip (/) 1000)
-
-        yPercentages =
-            [ 0.15, 0.9 ]
-
-        keySplinesValues =
-            interleave xPercentages yPercentages
-
-        keySplinesStr =
-            keySplinesValues |> List.map String.fromFloat |> String.join " "
-
-        x1Pos =
+        x1Percentage =
             50
 
-        x1PosStr =
-            String.fromInt x1Pos |> flip String.append "%"
-
-        y1Pos =
+        y1Percentage =
             50
 
-        y1PosStr =
-            String.fromInt y1Pos |> flip String.append "%"
+        x1Str =
+            x1Percentage |> String.fromFloat |> flip String.append "%"
 
-        length =
+        y1Str =
+            y1Percentage |> String.fromFloat |> flip String.append "%"
+
+        animationDurationInMillis =
+            clock.animationDurationInMillis
+
+        animationKeyTimeIndex =
+            case getAnimationKeyTimeIndex model of
+                ( Just x, _ ) ->
+                    x
+
+                ( _, x ) ->
+                    x
+
+        animationCompletionPercentage =
+            Array.get animationKeyTimeIndex clock.animationKeyTimesInMillis |> Maybe.withDefault 0 |> toFloat |> flip (/) (toFloat animationDurationInMillis)
+
+        timeInMillis =
+            posixToMillis model.time
+
+        midSecondTimeInMillis =
+            modBy 1000 timeInMillis
+
+        baseSecondCorrectionIndex =
+            case binarySearchBy first clock.numKeyTimes (modBy 1000 (midSecondTimeInMillis - clock.animationStartOffsetInMillis)) clock.baseSecondCorrectionsInMillis of
+                ( Just x, _ ) ->
+                    x
+
+                ( _, x ) ->
+                    x
+
+        baseSecondCorrectionInMillis =
+            Array.get baseSecondCorrectionIndex clock.baseSecondCorrectionsInMillis |> Maybe.withDefault ( 0, 0 ) |> second
+
+        secondHandPosition =
+            timeInMillis - midSecondTimeInMillis |> toFloat |> (+) (animationCompletionPercentage * 1000) |> (+) (toFloat baseSecondCorrectionInMillis) |> (*) -1 |> (+) 15000 |> flip (/) 60000 |> turns
+
+        secondHandLengthPercentage =
             50
 
-        endpointPositions =
-            [ turns (toFloat (model.analogClock.timeOfLastAnimatedSecondInMillis |> flip (//) 1000 |> (+) 45 |> modBy 60) / 60)
-            , turns (toFloat (model.analogClock.timeOfLastAnimatedSecondInMillis |> flip (//) 1000 |> (+) 45 |> (+) 1 |> modBy 60) / 60)
-            ]
+        x2Percentage =
+            x1Percentage + secondHandLengthPercentage * cos secondHandPosition
 
-        endpointValues =
-            endpointPositions
-                |> (\ps ->
-                        ( List.map cos ps, List.map sin ps )
-                            |> Tuple.mapBoth (List.map ((*) length)) (List.map ((*) length))
-                            |> Tuple.mapBoth (List.map ((+) x1Pos)) (List.map ((+) y1Pos))
-                   )
+        y2Percentage =
+            y1Percentage - secondHandLengthPercentage * sin secondHandPosition
 
-        x2Pos =
-            endpointValues |> first |> head |> withDefault 0
+        x2Str =
+            x2Percentage |> String.fromFloat |> flip String.append "%"
 
-        y2Pos =
-            endpointValues |> second |> head |> withDefault 0
-
-        x2PosStr =
-            String.fromFloat x2Pos |> flip String.append "%"
-
-        y2PosStr =
-            String.fromFloat y2Pos |> flip String.append "%"
-
-        endpointValuesStrs =
-            endpointValues
-                |> Tuple.mapBoth (List.map String.fromFloat) (List.map String.fromFloat)
-                |> Tuple.mapBoth (List.map (flip String.append "%")) (List.map (flip String.append "%"))
-                |> Tuple.mapBoth (String.join ";") (String.join ";")
-
-        animations =
-            [ animate [ repeatCount "indefinite", attributeName "x2", dur durStr, values (first endpointValuesStrs), calcMode "spline", keySplines keySplinesStr ] [], animate [ repeatCount "indefinite", attributeName "y2", dur durStr, values (second endpointValuesStrs), calcMode "spline", keySplines keySplinesStr ] [] ]
+        y2Str =
+            y2Percentage |> String.fromFloat |> flip String.append "%"
     in
-    svg [ width "50vh", height "50vh" ] [ line [ x1 x1PosStr, y1 y1PosStr, x2 x2PosStr, y2 y2PosStr, stroke "red" ] animations ]
+    svg [ width "50vh", height "50vh" ] [ line [ x1 x1Str, y1 y1Str, x2 x2Str, y2 y2Str, stroke "red" ] [] ]
 
 
 view : Model -> Html Msg
