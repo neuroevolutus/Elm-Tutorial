@@ -1,4 +1,4 @@
-module Main exposing (..)
+module ButtonExercises exposing (..)
 
 -- Press buttons to increment and decrement a counter.
 --
@@ -8,6 +8,7 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (Html, button, div, text)
+import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 
 
@@ -61,10 +62,24 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    div []
+    div
+        [ style "display" "flex"
+        , style "flex-direction" "column"
+        , style "height" "50vh"
+        , style "align-items" "center"
+        , style "justify-content" "space-evenly"
+        ]
         [ button [ onClick (Decrement 1) ] [ text "-" ]
         , div [] [ text (String.fromInt model) ]
         , button [ onClick (Increment 1) ] [ text "+" ]
-        , button [ onClick (Increment 10) ] [ text "+10" ]
-        , button [ onClick Reset ] [ text "X" ]
+        , div
+            [ style "display" "flex"
+            , style "flex-direction" "row"
+            , style "align-items" "center"
+            , style "width" "10vw"
+            , style "justify-content" "space-evenly"
+            ]
+            [ button [ onClick (Increment 10) ] [ text "+10" ]
+            , button [ onClick Reset ] [ text "X" ]
+            ]
         ]

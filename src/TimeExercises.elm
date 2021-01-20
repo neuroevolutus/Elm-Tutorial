@@ -14,14 +14,14 @@ import Basics exposing (Never, cos, modBy, never, round, sin, toFloat, turns)
 import Browser
 import Cmd.Extra exposing (pure)
 import Extras.Core exposing (flip)
-import Html exposing (Html, button, div, h1, map, text)
+import Html exposing (Html, button, div, h1, map)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 import Html.Lazy exposing (lazy)
 import Maybe exposing (Maybe(..))
 import Platform.Sub exposing (Sub)
-import Svg exposing (Svg, animate, line, svg)
-import Svg.Attributes exposing (attributeName, height, stroke, width, x1, x2, y1, y2)
+import Svg exposing (Svg, line, svg, text_)
+import Svg.Attributes exposing (attributeName, dx, dy, fontSize, height, stroke, textLength, viewBox, width, x, x1, x2, y, y1, y2)
 import Task
 import Time exposing (Posix, Zone, millisToPosix, posixToMillis, toHour, toMinute, toSecond)
 import Tuple exposing (first, second)
@@ -64,32 +64,38 @@ type alias AnalogClock =
     , baseSecondCorrectionsInMillis : Array ( Int, Int )
     }
 
-{-The binarySearchBy function in which the function used to transform an 
-arbitrary element of an array into a comparable number is simply the identity 
-function (that is to say, all the elements of the array are already comparable 
-numbers).
+
+
+{- The binarySearchBy function in which the function used to transform an
+   arbitrary element of an array into a comparable number is simply the identity
+   function (that is to say, all the elements of the array are already comparable
+   numbers).
 -}
+
 
 binarySearch : Int -> number -> Array number -> ( Maybe Int, Int )
 binarySearch =
     binarySearchBy identity
 
-{-A binary search.
-Given a function to transform an arbitrary element of an array into a  
-comparable number, the array length, a number to search for, and the input  
-array, the function returns a tuple of `Maybe Int` and `Int`. The first element 
-of the tuple will be a `Just` variant containing the index of the element that 
-yields the  desired number if and only if such an element exists in the array. 
-If the first  element of the tuple is a `Nothing` variant, the second element 
-of the tuple will a) contain the greatest index containing an element that 
-yields an number less than the desired number, b) contain 0 if  the desired 
-number is less than the smallest number yielded by any element in the array or 
-c) contain the maximum index  of the array if the desired number is greater 
-than the greatest number yielded by any element in the array.
-The implementation is adapted from the F# code in the Japanese binary search 
-Wikipedia article:
-<https://ja.wikipedia.org/wiki/%E4%BA%8C%E5%88%86%E6%8E%A2%E7%B4%A2>.
+
+
+{- A binary search.
+   Given a function to transform an arbitrary element of an array into a
+   comparable number, the array length, a number to search for, and the input
+   array, the function returns a tuple of `Maybe Int` and `Int`. The first element
+   of the tuple will be a `Just` variant containing the index of the element that
+   yields the  desired number if and only if such an element exists in the array.
+   If the first  element of the tuple is a `Nothing` variant, the second element
+   of the tuple will a) contain the greatest index containing an element that
+   yields an number less than the desired number, b) contain 0 if  the desired
+   number is less than the smallest number yielded by any element in the array or
+   c) contain the maximum index  of the array if the desired number is greater
+   than the greatest number yielded by any element in the array.
+   The implementation is adapted from the F# code in the Japanese binary search
+   Wikipedia article:
+   <https://ja.wikipedia.org/wiki/%E4%BA%8C%E5%88%86%E6%8E%A2%E7%B4%A2>.
 -}
+
 
 binarySearchBy : (a -> number) -> Int -> number -> Array a -> ( Maybe Int, Int )
 binarySearchBy f len value array =
@@ -149,23 +155,35 @@ defaultAnimationOffsetInMillis =
 
 defaultAnimationKeyTimes : ( Array Int, Int )
 defaultAnimationKeyTimes =
-    ( List.range 0 25 |> List.map (\n -> n ^ 2) |> List.map ((-) 625) |> List.sort |> Array.fromList, 26 )
+    ( List.range 0 25
+        |> List.map (\n -> n ^ 2)
+        |> List.map ((-) 625)
+        |> List.sort
+        |> Array.fromList
+    , 26
+    )
+
 
 getTimeWithinAnimation : Int -> Int -> Int
 getTimeWithinAnimation timeInMillis animationStartOffsetInMillis =
     let
-        midSecondTimeInMillis = modBy 1000 timeInMillis
+        midSecondTimeInMillis =
+            modBy 1000 timeInMillis
     in
-        modBy 1000 (midSecondTimeInMillis - animationStartOffsetInMillis)
+    modBy 1000 (midSecondTimeInMillis - animationStartOffsetInMillis)
 
-getAnimationKeyTimeIndexHelper : Int -> Int -> Int -> Array Int -> (Maybe Int, Int)
+
+getAnimationKeyTimeIndexHelper : Int -> Int -> Int -> Array Int -> ( Maybe Int, Int )
 getAnimationKeyTimeIndexHelper timeInMillis animationStartOffsetInMillis numKeyTimes keyTimes =
     binarySearch numKeyTimes (getTimeWithinAnimation timeInMillis animationStartOffsetInMillis) keyTimes
+
+
 
 {- Given a model,  the function returns the index (into the array of animation key
    times stored by the model) of the largest key time that is less than the
    current time stored by the model.
 -}
+
 
 getAnimationKeyTimeIndex : Model -> ( Maybe Int, Int )
 getAnimationKeyTimeIndex model =
@@ -197,23 +215,29 @@ getBaseSecondCorrectionsInMillis animationStartOffset animationKeyTimes =
                                 currentTimeCorrectionInMillis
                     in
                     generateCorrections (Array.push ( x, newTimeCorrectionInMillis ) timeCorrectionsInMillis) startOffsetInMillis x newTimeCorrectionInMillis xs
-        initialCorrection = 
-            (if animationStartOffset <= 0 then
+
+        initialCorrection =
+            if animationStartOffset <= 0 then
                 0
-             else
+
+            else
                 -1000
-            )
     in
-    generateCorrections (Array.fromList [(0, initialCorrection)])
+    generateCorrections (Array.fromList [ ( 0, initialCorrection ) ])
         animationStartOffset
         0
         initialCorrection
         (animationKeyTimes
             |> Array.toList
             |> List.sort
-            |> \x -> case List.tail x of
-                Just l -> l
-                Nothing -> []
+            |> (\x ->
+                    case List.tail x of
+                        Just l ->
+                            l
+
+                        Nothing ->
+                            []
+               )
         )
         |> Array.toList
         |> List.sortBy first
@@ -306,7 +330,7 @@ update msg model =
 
 timeSub : Sub Msg
 timeSub =
-    Time.every 50 Tick
+    Time.every 10 Tick
 
 
 subscriptions : Model -> Sub Msg
@@ -353,12 +377,145 @@ viewDigitalClock model =
             [ style "transform" "skewX(-10deg)"
             , style "text-shadow" ".05em -.08em #f0cc23"
             ]
-            [ text (getTime model) ]
+            [ Html.text (getTime model) ]
         ]
 
 
-viewAnalogClock : Model -> Html Never
-viewAnalogClock model =
+viewLine : Float -> Float -> Float -> Float -> Model -> Svg Never
+viewLine lengthPercentage angleInRadians x1Percentage y1Percentage model =
+    let
+        x2Percentage =
+            x1Percentage + lengthPercentage * cos angleInRadians
+
+        y2Percentage =
+            y1Percentage - lengthPercentage * sin angleInRadians
+
+        x1Str =
+            x1Percentage |> String.fromFloat |> flip String.append "%"
+
+        y1Str =
+            y1Percentage |> String.fromFloat |> flip String.append "%"
+
+        x2Str =
+            x2Percentage |> String.fromFloat |> flip String.append "%"
+
+        y2Str =
+            y2Percentage |> String.fromFloat |> flip String.append "%"
+    in
+    line [ x1 x1Str, y1 y1Str, x2 x2Str, y2 y2Str, stroke "red" ] []
+
+
+analogClockCenterXCoordinate : Float
+analogClockCenterXCoordinate =
+    50
+
+
+analogClockCenterYCoordinate : Float
+analogClockCenterYCoordinate =
+    50
+
+
+viewMajorClockIndices : Model -> List (Svg Never)
+viewMajorClockIndices model =
+    let
+        majorIndexLengthPercentage =
+            7
+    in
+    List.range 0 11
+        |> List.map toFloat
+        |> List.map
+            (\i ->
+                viewLine
+                    majorIndexLengthPercentage
+                    (i |> (*) -1 |> flip (/) 12 |> (+) (1 / 4) |> turns)
+                    (50
+                        + (50 - majorIndexLengthPercentage)
+                        * (((-i / 12) + (1 / 4)) |> turns |> cos)
+                    )
+                    (50
+                        + (50 - majorIndexLengthPercentage)
+                        * (((-i / 12) + (1 / 4)) |> turns |> sin |> (*) -1)
+                    )
+                    model
+            )
+
+
+viewMinorClockIndices : Model -> List (Svg Never)
+viewMinorClockIndices model =
+    let
+        minorIndexLengthPercentage =
+            3
+    in
+    List.range 0 59
+        |> List.filter (\i -> modBy 5 i /= 0)
+        |> List.map toFloat
+        |> List.map
+            (\i ->
+                viewLine
+                    minorIndexLengthPercentage
+                    (i |> (*) -1 |> (+) 15 |> flip (/) 60 |> turns)
+                    (50
+                        + (50 - minorIndexLengthPercentage)
+                        * (((-i / 60) + (1 / 4)) |> turns |> cos)
+                    )
+                    (50
+                        + (50 - minorIndexLengthPercentage)
+                        * (((-i / 60) + (1 / 4)) |> turns |> sin |> (*) -1)
+                    )
+                    model
+            )
+
+
+viewAnalogClockHourHand : Model -> List (Svg Never)
+viewAnalogClockHourHand model =
+    let
+        clock =
+            model.analogClock
+
+        hourHandLengthPercentage =
+            15
+
+        timeInMillis =
+            toHour model.zone model.time * 60 * 60 * 1000 + toMinute model.zone model.time * 60 * 1000
+
+        x1Percentage =
+            50
+
+        y1Percentage =
+            50
+
+        hourHandPosition =
+            timeInMillis |> modBy 43200000 |> toFloat |> (*) -1 |> (+) 10800000 |> flip (/) 43200000 |> turns
+    in
+    [ viewLine hourHandLengthPercentage hourHandPosition x1Percentage y1Percentage model ]
+
+
+viewAnalogClockMinuteHand : Model -> List (Svg Never)
+viewAnalogClockMinuteHand model =
+    let
+        clock =
+            model.analogClock
+
+        minuteHandLengthPercentage =
+            30
+
+        timeInMillis =
+            toMinute model.zone model.time * 60 * 1000 + toSecond model.zone model.time * 1000
+
+        x1Percentage =
+            50
+
+        y1Percentage =
+            50
+
+        minuteHandPosition =
+            timeInMillis |> toFloat |> (*) -1 |> (+) 900000 |> flip (/) 3600000 |> turns
+    in
+    [ viewLine minuteHandLengthPercentage minuteHandPosition x1Percentage y1Percentage model ]
+
+
+viewAnalogClockSecondHand : Model -> List (Svg Never)
+viewAnalogClockSecondHand model =
     let
         clock =
             model.analogClock
@@ -368,12 +525,6 @@ viewAnalogClock model =
 
         y1Percentage =
             50
-
-        x1Str =
-            x1Percentage |> String.fromFloat |> flip String.append "%"
-
-        y1Str =
-            y1Percentage |> String.fromFloat |> flip String.append "%"
 
         animationDurationInMillis =
             clock.animationDurationInMillis
@@ -410,33 +561,78 @@ viewAnalogClock model =
             timeInMillis - midSecondTimeInMillis |> toFloat |> (+) (animationCompletionPercentage * 1000) |> (+) (toFloat baseSecondCorrectionInMillis) |> (*) -1 |> (+) 15000 |> flip (/) 60000 |> turns
 
         secondHandLengthPercentage =
-            50
-
-        x2Percentage =
-            x1Percentage + secondHandLengthPercentage * cos secondHandPosition
-
-        y2Percentage =
-            y1Percentage - secondHandLengthPercentage * sin secondHandPosition
-
-        x2Str =
-            x2Percentage |> String.fromFloat |> flip String.append "%"
-
-        y2Str =
-            y2Percentage |> String.fromFloat |> flip String.append "%"
+            40
     in
-    svg [ width "50vh", height "50vh" ] [ line [ x1 x1Str, y1 y1Str, x2 x2Str, y2 y2Str, stroke "red" ] [] ]
+    [ viewLine secondHandLengthPercentage secondHandPosition x1Percentage y1Percentage model ]
 
 
-view : Model -> Html Msg
+viewAnalogClockHourFaces : Model -> List (Svg Never)
+viewAnalogClockHourFaces model =
+    let
+        distanceFromCenter =
+            35
+
+        getXOffset i =
+            if i >= 10 && i <= 12 then
+                -4
+
+            else
+                -2.4
+
+        getYOffset =
+            always 1
+
+        getPos i trigFunc offset centerCoordinate =
+            i
+                |> toFloat
+                |> (*) -1
+                |> (+) 3
+                |> flip (/) 12
+                |> turns
+                |> trigFunc
+                |> (*) distanceFromCenter
+                |> (+) centerCoordinate
+                |> (+) (offset i)
+                |> String.fromFloat
+                |> flip String.append "%"
+
+        getXPos i =
+            getPos i cos getXOffset analogClockCenterXCoordinate
+
+        getYPos i =
+            getPos i (\a -> -(sin a)) getYOffset analogClockCenterYCoordinate
+    in
+    List.range 1 12
+        |> List.map (\i -> text_ [ fontSize "3vh", dx "1", dy "1", x (getXPos i), y (getYPos i) ] [ Svg.text (String.fromInt i) ])
+
+
+
+{- Displays the analog clock. -}
+
+
+viewAnalogClock : Model -> Html Never
+viewAnalogClock model =
+    svg [ width "50vh", height "50vh" ]
+        (viewAnalogClockSecondHand model
+            |> List.append (viewAnalogClockMinuteHand model)
+            |> List.append (viewAnalogClockHourHand model)
+            |> List.append (viewMinorClockIndices model)
+            |> List.append (viewMajorClockIndices model)
+            |> List.append (viewAnalogClockHourFaces model)
+        )
+
+
 view model =
     if model.timeDisplayState == Displayable then
         div
             [ style "display" "flex"
+            , style "height" "100vh"
             , style "flex-direction" "column"
             , style "align-items" "center"
+            , style "justify-content" "space-evenly"
             ]
             [ lazy viewDigitalClock model |> Html.map never
-            , button [ onClick ToggleTime ] [ text (getTimeToggleText model) ]
+            , button [ onClick ToggleTime ] [ Html.text (getTimeToggleText model) ]
             , lazy viewAnalogClock model |> Html.map never
             ]
 

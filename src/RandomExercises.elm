@@ -11,6 +11,7 @@ import Browser
 import Cmd.Extra
 import Extras.Core exposing (flip)
 import Html exposing (Html, button, div, h1, h2, text)
+import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 import Maybe exposing (Maybe(..), andThen, withDefault)
 import Random
@@ -220,7 +221,13 @@ dieAtIndexToFace n =
 
 view : Model -> Html Msg
 view model =
-    div []
+    div
+        [ style "display" "flex"
+        , style "flex-direction" "column"
+        , style "height" "50vh"
+        , style "align-items" "center"
+        , style "justify-content" "space-evenly"
+        ]
         [ h1 [] [ dieAtIndexToFace 0 model.dice |> fromInt |> Svg.text ]
         , button [ onClick (RollDie 0) ] [ text "Roll" ]
         , h1 [] [ dieAtIndexToFace 1 model.dice |> fromInt |> Svg.text ]

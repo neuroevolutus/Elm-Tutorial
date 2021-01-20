@@ -1,15 +1,14 @@
+module TextFieldExercises exposing (..)
+
 -- A text input for reversing text. Very useful!
 --
 -- Read how it works:
 --   https://guide.elm-lang.org/architecture/text_fields.html
 --
 
-
-module Main exposing (Model, Msg(..), init, lengthDisplay, main, update, view)
-
 import Browser
-import Html exposing (Attribute, Html, div, input, text)
-import Html.Attributes exposing (..)
+import Html exposing (Html, div, input, text)
+import Html.Attributes exposing (placeholder, size, style, value)
 import Html.Events exposing (onInput)
 
 
@@ -27,12 +26,22 @@ main =
 
 type alias Model =
     { content : String
+    , placeholderText : String
+    , placeholderTextLength : Int
     }
+
+
+defaultPlaceholderText : String
+defaultPlaceholderText =
+    "Enter the text to be reversed"
 
 
 init : Model
 init =
-    { content = "" }
+    { content = ""
+    , placeholderText = defaultPlaceholderText
+    , placeholderTextLength = String.length defaultPlaceholderText
+    }
 
 
 
@@ -66,8 +75,26 @@ lengthDisplay str =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ input [ placeholder "Text to reverse", value model.content, onInput Change ] []
+    div
+        [ style "display" "flex"
+        , style "flex-direction" "column"
+        , style "height" "50vh"
+        , style "align-items" "center"
+        , style "justify-content" "space-evenly"
+        ]
+        -- Note: To make sure that the placeholder text actually fits the width
+        -- of the input box one would probably need to adjust the ::placeholder
+        -- pseudo-attribute using CSS.
+        [ input
+            [ size model.placeholderTextLength
+            , placeholder model.placeholderText
+            , style "font-size" "inherit"
+            , style "font-style" "inherit"
+            , style "font-family" "inherit"
+            , value model.content
+            , onInput Change
+            ]
+            []
         , div [] [ text (String.reverse model.content) ]
         , div [] [ text (lengthDisplay model.content) ]
         ]
