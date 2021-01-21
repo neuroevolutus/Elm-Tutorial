@@ -7,16 +7,18 @@ module RandomExercises exposing (..)
 --
 
 import Array exposing (Array, foldl, fromList)
+import Basics exposing (Never, never)
 import Browser
-import Cmd.Extra
+import Cmd.Extra exposing (pure)
 import Extras.Core exposing (flip)
-import Html exposing (Html, button, div, h1, h2, text)
+import Html exposing (Html, button, div)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
-import Maybe exposing (Maybe(..), andThen, withDefault)
+import Maybe exposing (andThen, Maybe(..), withDefault)
 import Random
-import String exposing (fromFloat, fromInt)
-import Svg
+import String exposing (fromInt)
+import Svg exposing (svg, Svg)
+import Svg.Attributes exposing (fontSize, height, width, x, y)
 import Time
 import Tuple exposing (second)
 
@@ -61,12 +63,12 @@ sumAccum ary =
 
 defaultFlickerIntervals : Array TimeInMillis
 defaultFlickerIntervals =
-    Array.initialize 10 (always tickInterval)
-        |> flip Array.append (Array.initialize 10 (always (tickInterval * 2)))
-        |> flip Array.append (Array.initialize 10 (always (tickInterval * 4)))
-        |> flip Array.append (Array.initialize 10 (always (tickInterval * 8)))
-        |> flip Array.append (Array.initialize 10 (always (tickInterval * 16)))
-        |> flip Array.append (Array.initialize 10 (always (tickInterval * 32)))
+    Array.initialize 10 (always defaultTickInterval)
+        |> flip Array.append (Array.initialize 10 (always (defaultTickInterval * 2)))
+        |> flip Array.append (Array.initialize 10 (always (defaultTickInterval * 4)))
+        |> flip Array.append (Array.initialize 10 (always (defaultTickInterval * 8)))
+        |> flip Array.append (Array.initialize 10 (always (defaultTickInterval * 16)))
+        |> flip Array.append (Array.initialize 10 (always (defaultTickInterval * 32)))
 
 
 applyOnTwoThenCombine : ( a, b ) -> (a -> c) -> (b -> d) -> (c -> d -> e) -> e
@@ -85,11 +87,6 @@ defaultFlickerCheckpoints =
 defaultRollingCountdownStart : TimeInMillis
 defaultRollingCountdownStart =
     sum defaultFlickerIntervals
-
-
-tickInterval : TimeInMillis
-tickInterval =
-    10
 
 
 type RollingState
@@ -122,10 +119,7 @@ dice =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { dice = fromList dice }
-    , Cmd.none
-    )
-
+    pure { dice = fromList dice }
 
 
 -- UPDATE
@@ -175,7 +169,7 @@ update msg model =
                                         False
 
                                 newCountdown =
-                                    die.rollingCountdown - tickInterval
+                                    die.rollingCountdown - defaultTickInterval
                             in
                             Just
                                 ( Model
@@ -204,19 +198,32 @@ update msg model =
 
 -- SUBSCRIPTIONS
 
+defaultTickInterval : TimeInMillis
+defaultTickInterval =
+    1
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Time.every tickInterval Tick
-
+    Time.every defaultTickInterval Tick
 
 
 -- VIEW
 
 
-dieAtIndexToFace : Int -> Array Die -> Int
-dieAtIndexToFace n =
-    Array.get n >> andThen (\die -> Just die.face) >> withDefault 0
+viewDieAtIndex : Int -> Array Die -> Html Never
+viewDieAtIndex n array =
+    let
+        roll = Array.get n array |> andThen (\die -> Just die.face) |> withDefault 1
+    in
+        svg
+            [ height "20vh", width "20vh" ]
+            [
+                fromInt roll
+                |> Svg.text
+                |> List.singleton
+                |> Svg.text_ [ fontSize "10vh", x "35%", y "80%" ]
+            ]
 
 
 view : Model -> Html Msg
@@ -224,12 +231,13 @@ view model =
     div
         [ style "display" "flex"
         , style "flex-direction" "column"
-        , style "height" "50vh"
+        , style "height" "100vh"
         , style "align-items" "center"
         , style "justify-content" "space-evenly"
         ]
-        [ h1 [] [ dieAtIndexToFace 0 model.dice |> fromInt |> Svg.text ]
-        , button [ onClick (RollDie 0) ] [ text "Roll" ]
-        , h1 [] [ dieAtIndexToFace 1 model.dice |> fromInt |> Svg.text ]
-        , button [ onClick (RollDie 1) ] [ text "Roll" ]
+        [ viewDieAtIndex 0 model.dice |> Html.map never
+        , button [ onClick (RollDie 0) ] [ Html.text "Roll" ]
+        , viewDieAtIndex 1 model.dice |> Html.map never
+        , button [ onClick (RollDie 1) ] [ Html.text "Roll" ]
         ]
+
