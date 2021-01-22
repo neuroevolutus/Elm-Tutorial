@@ -21,7 +21,7 @@ import Html.Lazy exposing (lazy)
 import Maybe exposing (Maybe(..))
 import Platform.Sub exposing (Sub)
 import Svg exposing (Svg, line, svg, text_)
-import Svg.Attributes exposing (attributeName, dx, dy, fontSize, height, stroke, textLength, viewBox, width, x, x1, x2, y, y1, y2)
+import Svg.Attributes exposing (dx, dy, fontSize, height, stroke, textLength, width, x, x1, x2, y, y1, y2)
 import Task
 import Time exposing (Posix, Zone, millisToPosix, posixToMillis, toHour, toMinute, toSecond)
 import Tuple exposing (first, second)

@@ -137,9 +137,10 @@ isPasswordSufficientlyStrong model =
     hasSufficientVariety p && hasSufficientLength p
 
 
-{-Display text in response to the user's input to indicate whether a change to 
-the input is required, additional input is required, or whether all input is 
-correct.
+
+{- Display text in response to the user's input to indicate whether a change to
+   the input is required, additional input is required, or whether all input is
+   correct.
 -}
 
 
