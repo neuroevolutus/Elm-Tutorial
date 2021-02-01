@@ -183,6 +183,19 @@ type Msg
     | Tick Time.Posix
 
 
+
+{- Given a model and a die number, the following function returns an updated mod
+   el with the cursor (or index) into the array of key times in milliseconds of
+   the specified die in the model based on the current time. The key times start
+    at a number greater than zero and progress downward. If the first key time w
+   ere 500 milliseconds stored at index zero in the array of key times with the
+   next key time being 400 milliseconds and the current time elapsed for the cur
+   rent rolling animation were greater than 100 milliseconds, then if the cursor
+    value were previously equal to zero the function would return a new model wh
+   ere the die's cursor were incremented to one.
+-}
+
+
 updateCountdownHelper : Model -> Int -> ( Model, Cmd Msg )
 updateCountdownHelper model n =
     let
@@ -190,6 +203,7 @@ updateCountdownHelper model n =
             let
                 currentCountdownCheckpoint =
                     Maybe.withDefault 0 (Array.get die.flickerCheckpointCursor die.flickerCheckpoints)
+
                 newFlickerCheckpointCursor =
                     if currentCountdownCheckpoint >= die.rollingCountdown then
                         die.flickerCheckpointCursor + 1
@@ -198,9 +212,12 @@ updateCountdownHelper model n =
                         die.flickerCheckpointCursor
 
                 changeFace =
-                    newFlickerCheckpointCursor > die.flickerCheckpointCursor &&
-                    die.rollingCountdown >= 0 &&
-                    die.rollingState == Rolling
+                    newFlickerCheckpointCursor
+                        > die.flickerCheckpointCursor
+                        && die.rollingCountdown
+                        >= 0
+                        && die.rollingState
+                        == Rolling
 
                 newCountdown =
                     die.rollingCountdown - defaultTickInterval
@@ -212,19 +229,18 @@ updateCountdownHelper model n =
                     else
                         Model (Array.set n { die | rollingState = Landed } model.dice)
 
-                nextCommand = 
+                nextCommand =
                     if changeFace then
                         Random.generate (\f -> ChangeFace n f) die.generator
 
                     else
                         Cmd.none
-
             in
-                ( nextModel, nextCommand )
+            ( nextModel, nextCommand )
     in
-        Array.get n model.dice
-            |> Maybe.map getNextStateAndCommandFromDie
-            |> Maybe.withDefault (Model Array.empty |> Cmd.Extra.pure)
+    Array.get n model.dice
+        |> Maybe.map getNextStateAndCommandFromDie
+        |> Maybe.withDefault (Model Array.empty |> Cmd.Extra.pure)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -250,6 +266,7 @@ update msg model =
                 |> Cmd.batch
                 << Array.toList
                 |> flip Cmd.Extra.with model
+
 
 
 -- SUBSCRIPTIONS
@@ -298,4 +315,3 @@ view model =
         , viewDieAtIndex 1 model.dice |> Html.map never
         , button [ onClick (RollDie 1) ] [ Html.text "Roll" ]
         ]
-

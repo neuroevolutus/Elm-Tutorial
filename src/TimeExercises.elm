@@ -146,7 +146,7 @@ defaultAnimationOffsetInMillis =
 
 
 {- The first value in the returned tuple are the default key times describing the
-   animation of the second hand from one  second to the next. The spacing of the
+   animation of the second hand from one second to the next. The spacing of the
    key times controls the smoothness of the  overall animation. The largest key
    time should be no larger than one thousand  milliseconds. The second value in
    the returned tuple is the length of the array of key values.
@@ -164,6 +164,20 @@ defaultAnimationKeyTimes =
     )
 
 
+
+{- Given the current time in milliseconds and the start offset of the animation
+   in milliseconds, the function returns the amount of time that has passed in
+   milliseconds for the currently active second hand animation. For example, if
+   the current time in milliseconds mod 1000 were equal to 500 and the start
+   offset of the second hand animation were 300 milliseconds, the time elapsed
+   for the currently active second hand animation would be 200 milliseconds.
+   Similarly, if the current time in milliseconds mod 1000 were equal to 700
+   and the start offset of the second hand animation were -200 milliseconds,
+   the time elapsed for the currently active second hand animation would be 900
+   milliseconds.
+-}
+
+
 getTimeWithinAnimation : Int -> Int -> Int
 getTimeWithinAnimation timeInMillis animationStartOffsetInMillis =
     let
@@ -173,14 +187,22 @@ getTimeWithinAnimation timeInMillis animationStartOffsetInMillis =
     modBy 1000 (midSecondTimeInMillis - animationStartOffsetInMillis)
 
 
+
+{- Given the current time in milliseconds, the start offset of the second hand
+   a nimation, the number of key times for the second hand animation, and an
+   array of key times, the function returns the index of the largest key time
+   that is less than the current time elapsed in the second hand animation.
+-}
+
+
 getAnimationKeyTimeIndexHelper : Int -> Int -> Int -> Array Int -> ( Maybe Int, Int )
 getAnimationKeyTimeIndexHelper timeInMillis animationStartOffsetInMillis numKeyTimes keyTimes =
     binarySearch numKeyTimes (getTimeWithinAnimation timeInMillis animationStartOffsetInMillis) keyTimes
 
 
 
-{- Given a model,  the function returns the index (into the array of animation key
-   times stored by the model) of the largest key time that is less than the
+{- Given a model,  the function returns the index (into the array of animation
+   key times stored by the model) of the largest key time that is less than the
    current time stored by the model.
 -}
 
@@ -188,6 +210,18 @@ getAnimationKeyTimeIndexHelper timeInMillis animationStartOffsetInMillis numKeyT
 getAnimationKeyTimeIndex : Model -> ( Maybe Int, Int )
 getAnimationKeyTimeIndex model =
     getAnimationKeyTimeIndexHelper (posixToMillis model.time) model.analogClock.animationStartOffsetInMillis (second defaultAnimationKeyTimes) (first defaultAnimationKeyTimes)
+
+
+
+{- Given the start offset of the second hand animation and an array of animation
+    key times, the function returns an array of tuples that maps each key time t
+   o an offset that must be applied to the current time in milliseconds mod 1000
+    in order to obtain the current base second of the currently active second ha
+   nd animation. For example, a specific tuple (500, -1000) would indicate that
+   on the 500th millisecond of the active second hand animation, one would have
+   to calculate (the current time in milliseconds mod 60000) - 1000 in order to
+   determine the current second hand position in terms of milliseconds.
+-}
 
 
 getBaseSecondCorrectionsInMillis : Int -> Array Int -> Array ( Int, Int )
@@ -415,6 +449,10 @@ analogClockCenterYCoordinate =
     50
 
 
+
+{- A function to view the clock indices at hours 3, 6, 9 and 12. -}
+
+
 viewMajorClockIndices : Model -> List (Svg Never)
 viewMajorClockIndices model =
     let
@@ -438,6 +476,10 @@ viewMajorClockIndices model =
                     )
                     model
             )
+
+
+
+{- A function to view the clock indices at hours 1, 2, 4, 5, 7, 8, 10 and 11. -}
 
 
 viewMinorClockIndices : Model -> List (Svg Never)
@@ -564,6 +606,12 @@ viewAnalogClockSecondHand model =
             40
     in
     [ viewLine secondHandLengthPercentage secondHandPosition x1Percentage y1Percentage model ]
+
+
+
+{- A function to view the text corresponding to each hour designation from 1 thr
+   ough 12.
+-}
 
 
 viewAnalogClockHourFaces : Model -> List (Svg Never)
