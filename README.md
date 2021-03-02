@@ -1,6 +1,6 @@
 # Elm Tutorial Example Solutions
 
-This repository contains my examples solutions for the exercises found at https://guide.elm-lang.org/.
+This repository contains my example solutions for the exercises found at https://guide.elm-lang.org/.
 
 ## How to Use This Repo
 
