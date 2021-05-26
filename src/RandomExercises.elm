@@ -184,26 +184,29 @@ type Msg
 
 
 
-{- Given a model and a die number, the following function returns an updated mod
-   el with the cursor (or index) into the array of key times in milliseconds of
-   the specified die in the model based on the current time. The key times start
-    at a number greater than zero and progress downward. If the first key time w
-   ere 500 milliseconds stored at index zero in the array of key times with the
-   next key time being 400 milliseconds and the current time elapsed for the cur
-   rent rolling animation were greater than 100 milliseconds, then if the cursor
-    value were previously equal to zero the function would return a new model wh
-   ere the die's cursor were incremented to one.
+{- Given a model and a die number, the following function returns an updated model 
+   with the cursor (or index) into the array of key times in milliseconds of the
+   specified die in the model based on the current time. The key times start at a
+   number greater than zero and progress downward. If the first key time were 500
+   milliseconds stored at index zero in the array of key times with the next key time
+   being 400 milliseconds and the current time elapsed for the current rolling
+   animation were greater than 100 milliseconds, then if the cursor value were
+   previously equal to zero the function would return a new model where the die's
+   cursor were incremented to one.
 -}
 
 
 updateCountdownHelper : Model -> Int -> ( Model, Cmd Msg )
 updateCountdownHelper model n =
     let
+        -- Create a function to get a new model and message given the state of a given die
         getNextStateAndCommandFromDie die =
             let
+                -- Get the time in milliseconds of the amount of time left in the flicker animation for the specified die.
                 currentCountdownCheckpoint =
                     Maybe.withDefault 0 (Array.get die.flickerCheckpointCursor die.flickerCheckpoints)
 
+                -- Determine whether the cursor into the list of animation checkpoints for the die can be incremented by one.
                 newFlickerCheckpointCursor =
                     if currentCountdownCheckpoint >= die.rollingCountdown then
                         die.flickerCheckpointCursor + 1
@@ -211,17 +214,22 @@ updateCountdownHelper model n =
                     else
                         die.flickerCheckpointCursor
 
+                -- Set the boolean `changeFace` to true if the flicker checkpoint cursor is deemed to be updateable.
                 changeFace =
                     newFlickerCheckpointCursor
                         > die.flickerCheckpointCursor
                         && die.rollingCountdown
+                        -- Make sure the animation countdown is not currently equal to zero.
                         >= 0
                         && die.rollingState
+                        -- Check to make sure the die is currently rolling. Otherwise, the die will roll on page load.
                         == Rolling
 
+                -- Update the die's animation countdown.
                 newCountdown =
                     die.rollingCountdown - defaultTickInterval
 
+                -- Calculate the new model.
                 nextModel =
                     if changeFace || die.rollingCountdown >= 0 then
                         Model (Array.set n { die | rollingCountdown = newCountdown, flickerCheckpointCursor = newFlickerCheckpointCursor } model.dice)
@@ -229,6 +237,7 @@ updateCountdownHelper model n =
                     else
                         Model (Array.set n { die | rollingState = Landed } model.dice)
 
+                -- Issue a message to change the die face if `changeFace` is true.
                 nextCommand =
                     if changeFace then
                         Random.generate (\f -> ChangeFace n f) die.generator
@@ -238,6 +247,7 @@ updateCountdownHelper model n =
             in
             ( nextModel, nextCommand )
     in
+    -- Use the helper function to determine the new combination of model and message given the inputed model and die index.
     Array.get n model.dice
         |> Maybe.map getNextStateAndCommandFromDie
         |> Maybe.withDefault (Model Array.empty |> Cmd.Extra.pure)
@@ -246,19 +256,23 @@ updateCountdownHelper model n =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        -- Roll the die at the specified index by setting its state to rolling and resetting its rolling countdown.
         RollDie n ->
             Array.get n model.dice
                 |> Maybe.andThen (\die -> Just (Cmd.Extra.pure (Model (Array.set n { die | rollingState = Rolling, rollingCountdown = die.rollingCountdownStart, flickerCheckpointCursor = 0 } model.dice))))
                 |> Maybe.withDefault (Cmd.Extra.pure model)
 
+        -- Change the die at the specified index to the given face.
         ChangeFace n a ->
             Array.get n model.dice
                 |> Maybe.andThen (\die -> Just (Cmd.Extra.pure (Model (Array.set n { die | face = a } model.dice))))
                 |> Maybe.withDefault (Cmd.Extra.pure model)
 
+        -- Update the animation state of the die at index n.
         UpdateCountdown n ->
             updateCountdownHelper model n
 
+        -- Issue messages to update the state of all dice.
         Tick t ->
             model.dice
                 |> Array.indexedMap (\i _ -> i)
@@ -266,7 +280,6 @@ update msg model =
                 |> Cmd.batch
                 << Array.toList
                 |> flip Cmd.Extra.with model
-
 
 
 -- SUBSCRIPTIONS
@@ -282,8 +295,12 @@ subscriptions model =
     Time.every defaultTickInterval Tick
 
 
-
 -- VIEW
+
+
+{- Returns an SVG element displaying the face of the die at the specified index of 
+   the inputted dice array.
+-}
 
 
 viewDieAtIndex : Int -> Array Die -> Html Never

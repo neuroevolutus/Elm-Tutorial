@@ -48,6 +48,11 @@ type Msg
     | PasswordConfirmation String
 
 
+
+{- Handle updates of the name, password and password confirmation fields.
+-}
+
+
 update : Msg -> Model -> Model
 update msg model =
     case msg of
@@ -74,9 +79,10 @@ type alias PasswordData =
 
 
 
-{- Returns an `Html msg` corresponding to an input field given String values for
-   the input type, placeholder text, and value of the text field content as well
-   as a function for transforming the content of the field into a message.
+{- Returns an `Html msg` corresponding to an input field given String values for the
+   input type (i.e. text vs. password), placeholder text, and value of the input
+   field content as well as a function for transforming the content of the field into
+   a Msg.
 -}
 
 
@@ -85,6 +91,10 @@ viewInputField t p v toMsg =
     input [ type_ t, placeholder p, value v, onInput toMsg ] []
 
 
+{- Checks whether the password attributes encapsulated in the inputted PasswordData
+   value is representative of a sufficiently varied password.
+-}
+
 hasSufficientVariety : PasswordData -> Bool
 hasSufficientVariety p =
     if p.hasUppercase && p.hasLowercase && (p.numDigits > 1) then
@@ -92,6 +102,11 @@ hasSufficientVariety p =
 
     else
         False
+
+
+{- Checks whether the inputted PasswordData value is representative of a sufficient
+   ly long password.
+-}
 
 
 hasSufficientLength : PasswordData -> Bool
@@ -126,6 +141,11 @@ updatePasswordData c p =
 
     else
         p_new
+
+
+{- Takes as input a Model and returns whether or not the password contained within 
+   the model is sufficiently strong.
+-}
 
 
 isPasswordSufficientlyStrong : Model -> Bool
