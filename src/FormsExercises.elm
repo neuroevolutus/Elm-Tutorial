@@ -49,8 +49,7 @@ type Msg
 
 
 
-{- Handle updates of the name, password and password confirmation fields.
--}
+{- Handle updates of the name, password and password confirmation fields. -}
 
 
 update : Msg -> Model -> Model
@@ -91,9 +90,11 @@ viewInputField t p v toMsg =
     input [ type_ t, placeholder p, value v, onInput toMsg ] []
 
 
+
 {- Checks whether the password attributes encapsulated in the inputted PasswordData
    value is representative of a sufficiently varied password.
 -}
+
 
 hasSufficientVariety : PasswordData -> Bool
 hasSufficientVariety p =
@@ -102,6 +103,7 @@ hasSufficientVariety p =
 
     else
         False
+
 
 
 {- Checks whether the inputted PasswordData value is representative of a sufficient
@@ -143,7 +145,8 @@ updatePasswordData c p =
         p_new
 
 
-{- Takes as input a Model and returns whether or not the password contained within 
+
+{- Takes as input a Model and returns whether or not the password contained within
    the model is sufficiently strong.
 -}
 

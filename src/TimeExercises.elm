@@ -214,10 +214,10 @@ getAnimationKeyTimeIndex model =
 
 
 {- Given the start offset of the second hand animation and an array of animation
-    key times, the function returns an array of tuples that maps each key time t
-   o an offset that must be applied to the current time in milliseconds mod 1000
-    in order to obtain the current base second of the currently active second ha
-   nd animation. For example, a specific tuple (500, -1000) would indicate that
+   key times, the function returns an array of tuples that maps each key time to
+   an offset that must be applied to the current time in milliseconds mod 1000
+   in order to obtain the current base second of the currently active second
+   hand animation. For example, a specific tuple (500, -1000) would indicate that
    on the 500th millisecond of the active second hand animation, one would have
    to calculate (the current time in milliseconds mod 60000) - 1000 in order to
    determine the current second hand position in terms of milliseconds.
@@ -227,20 +227,32 @@ getAnimationKeyTimeIndex model =
 getBaseSecondCorrectionsInMillis : Int -> Array Int -> Array ( Int, Int )
 getBaseSecondCorrectionsInMillis animationStartOffset animationKeyTimes =
     let
+        -- A helper function to generate the time corrections given an array of already calculated corrections,
+        -- the designated start offset of the animation in milliseconds, the time in milliseconds associated with
+        -- the previously processed animation key time, the currently active time correction in milliseconds and
+        -- the remaining worklist of animation key times.
         generateCorrections timeCorrectionsInMillis startOffsetInMillis lastAnimationKeyTime currentTimeCorrectionInMillis remainingAnimationKeyTimes =
             case remainingAnimationKeyTimes of
+                -- If there are no more key times to process, return the calculated list of corrections.
                 [] ->
                     timeCorrectionsInMillis
 
                 x :: xs ->
                     let
+                        -- Calculate the absolute time in milliseconds (modulo 1000ms) of the key time
+                        -- currently being processed.
                         nonZeroCurrentTimeInMillis =
                             modBy 1000 (startOffsetInMillis + x)
 
+                        -- Calculate the absolute time in milliseconds (modulo 1000ms) of the previously
+                        -- processed animation key time.
                         nonZeroLastAnimationTime =
                             modBy 1000 (startOffsetInMillis + lastAnimationKeyTime)
                     in
                     let
+                        -- If the absolute time associated with the current key time being processed
+                        -- loops around the 1000ms mark, subtract an additional 1000ms to the currently
+                        -- applied base second time correction.
                         newTimeCorrectionInMillis =
                             if nonZeroCurrentTimeInMillis < nonZeroLastAnimationTime then
                                 currentTimeCorrectionInMillis - 1000
@@ -250,6 +262,8 @@ getBaseSecondCorrectionsInMillis animationStartOffset animationKeyTimes =
                     in
                     generateCorrections (Array.push ( x, newTimeCorrectionInMillis ) timeCorrectionsInMillis) startOffsetInMillis x newTimeCorrectionInMillis xs
 
+        -- If the animation for reaching second x begins after second x has been reached,
+        -- set the initial base second time correction to be -1000ms.
         initialCorrection =
             if animationStartOffset <= 0 then
                 0
@@ -263,7 +277,12 @@ getBaseSecondCorrectionsInMillis animationStartOffset animationKeyTimes =
         initialCorrection
         (animationKeyTimes
             |> Array.toList
+            -- Sort the list of animation key times in case they are
+            -- passed in out of order.
             |> List.sort
+            -- Ensure that the animation key time corresponding to time
+            -- zero of the animation is dropped from the worklist of
+            -- key times passed to the `generateCorrections` method.
             |> (\x ->
                     case List.tail x of
                         Just l ->
@@ -273,9 +292,6 @@ getBaseSecondCorrectionsInMillis animationStartOffset animationKeyTimes =
                             []
                )
         )
-        |> Array.toList
-        |> List.sortBy first
-        |> Array.fromList
 
 
 type alias Model =
@@ -306,6 +322,8 @@ init _ =
         baseSecondCorrections =
             getBaseSecondCorrectionsInMillis defaultAnimationOffsetInMillis keyTimes
     in
+    -- Set the display state to be undisplayable initially so that an incorrect time is not
+    -- displayed upon page load.
     ( Model Time.utc (millisToPosix 1000) Running Undisplayable [ timeSub ] (AnalogClock keyTimes defaultAnimationOffsetInMillis animationDuration numKeyTimes baseSecondCorrections)
     , Task.perform AdjustTimeZone Time.here
     )
@@ -386,9 +404,19 @@ getTimeToggleText model =
             "Pause"
 
 
+{- Applies a function `f` to turn a time zone and Posix time into an integer on the
+   model's zone and time attributes.
+-}
+
+
 getTimeAttribute : (Zone -> Posix -> Int) -> Model -> Int
 getTimeAttribute f model =
     f model.zone model.time
+
+
+{- Returns a HH:MM:SS formatted string representing the time currently stored in
+   the model.
+-}
 
 
 getTime : Model -> String
@@ -397,6 +425,11 @@ getTime model =
         |> List.map String.fromInt
         |> List.map (String.padLeft 2 '0')
         |> String.join ":"
+
+
+{- Returns an HTML element containing the current time formatted as a HH:MM:SS
+   style string.
+-}
 
 
 viewDigitalClock : Model -> Html Never
@@ -413,6 +446,14 @@ viewDigitalClock model =
             ]
             [ Html.text (getTime model) ]
         ]
+
+
+{- Returns an SVG line given the desired length of the line as a percentage of the 
+   enclosing container along any dimension (note that this implies that the contain
+   er should be square), the angle of the line in radians, the starting x position 
+   of the line as a percentage (as mentioned before), the starting y position of
+   the line as a percentage (as mentioned before), and the model.
+-}
 
 
 viewLine : Float -> Float -> Float -> Float -> Model -> Svg Never
@@ -449,8 +490,8 @@ analogClockCenterYCoordinate =
     50
 
 
-
-{- A function to view the clock indices at hours 3, 6, 9 and 12. -}
+{- A function to display the clock indices at hours 3, 6, 9 and 12.
+-}
 
 
 viewMajorClockIndices : Model -> List (Svg Never)
@@ -465,11 +506,16 @@ viewMajorClockIndices model =
             (\i ->
                 viewLine
                     majorIndexLengthPercentage
+                    -- See `viewAnalogClockMinuteHand` for a more detailed
+                    -- explanation of the purpose of these calculations.
                     (i |> (*) -1 |> flip (/) 12 |> (+) (1 / 4) |> turns)
                     (50
                         + (50 - majorIndexLengthPercentage)
                         * (((-i / 12) + (1 / 4)) |> turns |> cos)
                     )
+                    -- Multiply the result of sin by -1 since the y
+                    -- direction is flipped when working with SVGs as
+                    -- opposed to mathematical quadrants.
                     (50
                         + (50 - majorIndexLengthPercentage)
                         * (((-i / 12) + (1 / 4)) |> turns |> sin |> (*) -1)
@@ -478,8 +524,8 @@ viewMajorClockIndices model =
             )
 
 
-
-{- A function to view the clock indices at hours 1, 2, 4, 5, 7, 8, 10 and 11. -}
+{- A function to display the clock indices at hours 1, 2, 4, 5, 7, 8, 10 and 11.
+-}
 
 
 viewMinorClockIndices : Model -> List (Svg Never)
@@ -496,16 +542,25 @@ viewMinorClockIndices model =
                 viewLine
                     minorIndexLengthPercentage
                     (i |> (*) -1 |> (+) 15 |> flip (/) 60 |> turns)
+                    -- See `viewAnalogClockMinuteHand` for a more detailed
+                    -- explanation of the purpose of these calculations.
                     (50
                         + (50 - minorIndexLengthPercentage)
                         * (((-i / 60) + (1 / 4)) |> turns |> cos)
                     )
+                    -- Multiply the result of sin by -1 since the y
+                    -- direction is flipped when working with SVGs as
+                    -- opposed to mathematical quadrants.
                     (50
                         + (50 - minorIndexLengthPercentage)
                         * (((-i / 60) + (1 / 4)) |> turns |> sin |> (*) -1)
                     )
                     model
             )
+
+
+{- A function to display the analog clock hour hand.
+-}
 
 
 viewAnalogClockHourHand : Model -> List (Svg Never)
@@ -527,9 +582,17 @@ viewAnalogClockHourHand model =
             50
 
         hourHandPosition =
+            -- There are 43,200,000 milliseconds in an interval of 12 hours.
+            -- There are 10,800,000 milliseconds in an interval of 4 hours.
+            -- See `viewAnalogClockMinuteHand` for a more detailed
+            -- explanation of the purpose of these calculations.
             timeInMillis |> modBy 43200000 |> toFloat |> (*) -1 |> (+) 10800000 |> flip (/) 43200000 |> turns
     in
     [ viewLine hourHandLengthPercentage hourHandPosition x1Percentage y1Percentage model ]
+
+
+{- A function to display the analog clock minute hand.
+-}
 
 
 viewAnalogClockMinuteHand : Model -> List (Svg Never)
@@ -551,9 +614,22 @@ viewAnalogClockMinuteHand model =
             50
 
         minuteHandPosition =
+            -- 1/4 of an hour is 900,000 milliseconds.
+            -- There are 3,600,000 milliseconds in an hour.
+            -- Multiply the time in milliseconds by -1.
+            -- Add 1/4 of an hour.
+            -- Divide by the duration of an hour.
+            -- Convert to radians.
+            -- Note: these calculations are necessary because radians are calculated
+            -- by moving counter-clockwise around the unit circle starting at the
+            -- position x = 1, y = 0.
             timeInMillis |> toFloat |> (*) -1 |> (+) 900000 |> flip (/) 3600000 |> turns
     in
     [ viewLine minuteHandLengthPercentage minuteHandPosition x1Percentage y1Percentage model ]
+
+
+{- A function to display the analog clock second hand.
+-}
 
 
 viewAnalogClockSecondHand : Model -> List (Svg Never)
@@ -571,6 +647,8 @@ viewAnalogClockSecondHand model =
         animationDurationInMillis =
             clock.animationDurationInMillis
 
+        -- Get the index of the largest applicable animation key
+        -- time based on the current time.
         animationKeyTimeIndex =
             case getAnimationKeyTimeIndex model of
                 ( Just x, _ ) ->
@@ -588,6 +666,9 @@ viewAnalogClockSecondHand model =
         midSecondTimeInMillis =
             modBy 1000 timeInMillis
 
+        -- Calculate the correction that must be applied to the current value of
+        -- the time in seconds based on the amount of time that has passed since
+        -- the beginning of the latest second animation.
         baseSecondCorrectionIndex =
             case binarySearchBy first clock.numKeyTimes (modBy 1000 (midSecondTimeInMillis - clock.animationStartOffsetInMillis)) clock.baseSecondCorrectionsInMillis of
                 ( Just x, _ ) ->
@@ -596,9 +677,15 @@ viewAnalogClockSecondHand model =
                 ( _, x ) ->
                     x
 
+        -- Retrieve the base second correction (as value that is a multiple of 1000ms)
+        -- that must be applied to the current time.
         baseSecondCorrectionInMillis =
             Array.get baseSecondCorrectionIndex clock.baseSecondCorrectionsInMillis |> Maybe.withDefault ( 0, 0 ) |> second
 
+        -- Calculate the position of the second hand using the current time and the
+        -- calculated base second correction value.
+        -- See `viewAnalogClockMinuteHand` for a more detailed
+        -- explanation of the purpose of these calculations.
         secondHandPosition =
             timeInMillis - midSecondTimeInMillis |> toFloat |> (+) (animationCompletionPercentage * 1000) |> (+) (toFloat baseSecondCorrectionInMillis) |> (*) -1 |> (+) 15000 |> flip (/) 60000 |> turns
 
@@ -609,8 +696,8 @@ viewAnalogClockSecondHand model =
 
 
 
-{- A function to view the text corresponding to each hour designation from 1 thr
-   ough 12.
+{- A function to display the text corresponding to each hour designation from
+   1 through 12.
 -}
 
 
@@ -620,6 +707,10 @@ viewAnalogClockHourFaces model =
         distanceFromCenter =
             35
 
+        -- Apply a small correction to the x position of the
+        -- hour faces based on their numerical value. Note
+        -- that the hour faces with 2 digits require a larger
+        -- correction.
         getXOffset i =
             if i >= 10 && i <= 12 then
                 -4
@@ -630,6 +721,8 @@ viewAnalogClockHourFaces model =
         getYOffset =
             always 1
 
+        -- See `viewAnalogClockMinuteHand` for a more detailed
+        -- explanation of the purpose of these calculations.
         getPos i trigFunc offset centerCoordinate =
             i
                 |> toFloat
@@ -652,7 +745,6 @@ viewAnalogClockHourFaces model =
     in
     List.range 1 12
         |> List.map (\i -> text_ [ fontSize "3vh", dx "1", dy "1", x (getXPos i), y (getYPos i) ] [ Svg.text (String.fromInt i) ])
-
 
 
 {- Displays the analog clock. -}

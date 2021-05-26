@@ -184,7 +184,7 @@ type Msg
 
 
 
-{- Given a model and a die number, the following function returns an updated model 
+{- Given a model and a die number, the following function returns an updated model
    with the cursor (or index) into the array of key times in milliseconds of the
    specified die in the model based on the current time. The key times start at a
    number greater than zero and progress downward. If the first key time were 500
@@ -282,6 +282,7 @@ update msg model =
                 |> flip Cmd.Extra.with model
 
 
+
 -- SUBSCRIPTIONS
 
 
@@ -295,10 +296,9 @@ subscriptions model =
     Time.every defaultTickInterval Tick
 
 
+
 -- VIEW
-
-
-{- Returns an SVG element displaying the face of the die at the specified index of 
+{- Returns an SVG element displaying the face of the die at the specified index of
    the inputted dice array.
 -}
 

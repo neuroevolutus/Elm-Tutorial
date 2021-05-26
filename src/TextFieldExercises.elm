@@ -82,7 +82,7 @@ view model =
         , style "align-items" "center"
         , style "justify-content" "space-evenly"
         ]
-        -- Note: To make sure that the placeholder text actually fits the width
+        -- Note: To ensure that the placeholder text actually fits the width
         -- of the input box one would probably need to adjust the ::placeholder
         -- pseudo-attribute using CSS.
         [ input
