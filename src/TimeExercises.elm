@@ -492,18 +492,18 @@ analogClockCenterYCoordinate =
 
 {- A function to convert a position in an arbitrary set of units,
    measured in terms of counter-clockwise angle from the positive
-   x-axis, into a clock position, which measures a position in
-   terms of the clockwise angle from the positive y-axis, where
-   `position` denotes the angle to be converted and
-   `numTicksInFullTurn` represents the number of units (in terms
-   of the measure used for `position` needed to constitute 
-   full turn of the clock face).
+   x-axis, into a clock position, which measures in radians the
+   clockwise angle from the positive y-axis, where `position`
+   denotes the angle to be converted and `numTicksInFullTurn`
+   represents the number of units (in terms of the measure used
+   for `position` needed to constitute full turn of the clock
+   face).
 -}
 
 
 convertToClockPosition : Float -> Float -> Float
 convertToClockPosition position numTicksInFullTurn =
-    (position * -1.0 + numTicksInFullTurn / 4.0) |> turns
+    position |> (*) -1.0 |> flip (/) numTicksInFullTurn |> (+) .25 |> turns
 
 
 {- A function to display the clock indices at hours 3, 6, 9 and 12.
