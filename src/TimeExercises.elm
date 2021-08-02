@@ -404,6 +404,7 @@ getTimeToggleText model =
             "Pause"
 
 
+
 {- Applies a function `f` to turn a time zone and Posix time into an integer on the
    model's zone and time attributes.
 -}
@@ -412,6 +413,7 @@ getTimeToggleText model =
 getTimeAttribute : (Zone -> Posix -> Int) -> Model -> Int
 getTimeAttribute f model =
     f model.zone model.time
+
 
 
 {- Returns a HH:MM:SS formatted string representing the time currently stored in
@@ -425,6 +427,7 @@ getTime model =
         |> List.map String.fromInt
         |> List.map (String.padLeft 2 '0')
         |> String.join ":"
+
 
 
 {- Returns an HTML element containing the current time formatted as a HH:MM:SS
@@ -448,9 +451,10 @@ viewDigitalClock model =
         ]
 
 
-{- Returns an SVG line given the desired length of the line as a percentage of the 
+
+{- Returns an SVG line given the desired length of the line as a percentage of the
    enclosing container along any dimension (note that this implies that the contain
-   er should be square), the angle of the line in radians, the starting x position 
+   er should be square), the angle of the line in radians, the starting x position
    of the line as a percentage (as mentioned before), the starting y position of
    the line as a percentage (as mentioned before), and the model.
 -}
@@ -490,6 +494,7 @@ analogClockCenterYCoordinate =
     50
 
 
+
 {- A function to convert a position in an arbitrary set of units,
    measured in terms of counter-clockwise angle from the positive
    x-axis, into a clock position, which measures in radians the
@@ -506,8 +511,8 @@ convertToClockPosition position numTicksInFullTurn =
     position |> (*) -1.0 |> flip (/) numTicksInFullTurn |> (+) 0.25 |> turns
 
 
-{- A function to display the clock indices at hours 3, 6, 9 and 12.
--}
+
+{- A function to display the clock indices at hours 3, 6, 9 and 12. -}
 
 
 viewMajorClockIndices : Model -> List (Svg Never)
@@ -521,7 +526,8 @@ viewMajorClockIndices model =
         |> List.map
             (\i ->
                 let
-                    clockPosition = convertToClockPosition i 12
+                    clockPosition =
+                        convertToClockPosition i 12
                 in
                 viewLine
                     majorIndexLengthPercentage
@@ -541,8 +547,8 @@ viewMajorClockIndices model =
             )
 
 
-{- A function to display the clock indices at hours 1, 2, 4, 5, 7, 8, 10 and 11.
--}
+
+{- A function to display the clock indices at hours 1, 2, 4, 5, 7, 8, 10 and 11. -}
 
 
 viewMinorClockIndices : Model -> List (Svg Never)
@@ -557,7 +563,8 @@ viewMinorClockIndices model =
         |> List.map
             (\i ->
                 let
-                    clockPosition = convertToClockPosition i 60
+                    clockPosition =
+                        convertToClockPosition i 60
                 in
                 viewLine
                     minorIndexLengthPercentage
@@ -577,8 +584,18 @@ viewMinorClockIndices model =
             )
 
 
-{- A function to display the analog clock hour hand.
--}
+
+{- Given a model, yields the current time in milliseconds as a float. -}
+
+
+getCurrentTimeInMillis : Model -> Float
+getCurrentTimeInMillis model =
+    (toHour model.zone model.time * 60 * 60 * 1000 + toMinute model.zone model.time * 60 * 1000)
+        |> toFloat
+
+
+
+{- A function to display the analog clock hour hand. -}
 
 
 viewAnalogClockHourHand : Model -> List (Svg Never)
@@ -591,22 +608,23 @@ viewAnalogClockHourHand model =
             15
 
         timeInMillis =
-            (toHour model.zone model.time * 60 * 60 * 1000 + toMinute model.zone model.time * 60 * 1000)
-            |> toFloat
+            getCurrentTimeInMillis model
 
         x1Percentage =
             50
 
         y1Percentage =
             50
+
         -- There are 43,200,000 milliseconds in an interval of 12 hours.
-        hourHandPosition = convertToClockPosition timeInMillis 43200000
+        hourHandPosition =
+            convertToClockPosition timeInMillis 43200000
     in
     [ viewLine hourHandLengthPercentage hourHandPosition x1Percentage y1Percentage model ]
 
 
-{- A function to display the analog clock minute hand.
--}
+
+{- A function to display the analog clock minute hand. -}
 
 
 viewAnalogClockMinuteHand : Model -> List (Svg Never)
@@ -619,22 +637,23 @@ viewAnalogClockMinuteHand model =
             30
 
         timeInMillis =
-            (toMinute model.zone model.time * 60 * 1000 + toSecond model.zone model.time * 1000)
-            |> toFloat
+            getCurrentTimeInMillis model
 
         x1Percentage =
             50
 
         y1Percentage =
             50
+
         -- There are 3,600,000 milliseconds in an hour.
-        minuteHandPosition = convertToClockPosition timeInMillis 3600000
+        minuteHandPosition =
+            convertToClockPosition timeInMillis 3600000
     in
     [ viewLine minuteHandLengthPercentage minuteHandPosition x1Percentage y1Percentage model ]
 
 
-{- A function to display the analog clock second hand.
--}
+
+{- A function to display the analog clock second hand. -}
 
 
 viewAnalogClockSecondHand : Model -> List (Svg Never)
@@ -747,6 +766,7 @@ viewAnalogClockHourFaces model =
     in
     List.range 1 12
         |> List.map (\i -> text_ [ fontSize "3vh", dx "1", dy "1", x (getXPos i), y (getYPos i) ] [ Svg.text (String.fromInt i) ])
+
 
 
 {- Displays the analog clock. -}
