@@ -503,7 +503,7 @@ analogClockCenterYCoordinate =
 
 convertToClockPosition : Float -> Float -> Float
 convertToClockPosition position numTicksInFullTurn =
-    position |> (*) -1.0 |> flip (/) numTicksInFullTurn |> (+) .25 |> turns
+    position |> (*) -1.0 |> flip (/) numTicksInFullTurn |> (+) 0.25 |> turns
 
 
 {- A function to display the clock indices at hours 3, 6, 9 and 12.
@@ -520,21 +520,22 @@ viewMajorClockIndices model =
         |> List.map toFloat
         |> List.map
             (\i ->
+                let
+                    clockPosition = convertToClockPosition i 12
+                in
                 viewLine
                     majorIndexLengthPercentage
-                    -- See `viewAnalogClockMinuteHand` for a more detailed
-                    -- explanation of the purpose of these calculations.
-                    (i |> (*) -1 |> flip (/) 12 |> (+) (1 / 4) |> turns)
+                    clockPosition
                     (50
                         + (50 - majorIndexLengthPercentage)
-                        * (((-i / 12) + (1 / 4)) |> turns |> cos)
+                        * (clockPosition |> cos)
                     )
                     -- Multiply the result of sin by -1 since the y
                     -- direction is flipped when working with SVGs as
                     -- opposed to mathematical quadrants.
                     (50
                         + (50 - majorIndexLengthPercentage)
-                        * (((-i / 12) + (1 / 4)) |> turns |> sin |> (*) -1)
+                        * (clockPosition |> sin |> (*) -1)
                     )
                     model
             )
@@ -555,21 +556,22 @@ viewMinorClockIndices model =
         |> List.map toFloat
         |> List.map
             (\i ->
+                let
+                    clockPosition = convertToClockPosition i 60
+                in
                 viewLine
                     minorIndexLengthPercentage
-                    (i |> (*) -1 |> (+) 15 |> flip (/) 60 |> turns)
-                    -- See `viewAnalogClockMinuteHand` for a more detailed
-                    -- explanation of the purpose of these calculations.
+                    clockPosition
                     (50
                         + (50 - minorIndexLengthPercentage)
-                        * (((-i / 60) + (1 / 4)) |> turns |> cos)
+                        * (clockPosition |> cos)
                     )
                     -- Multiply the result of sin by -1 since the y
                     -- direction is flipped when working with SVGs as
                     -- opposed to mathematical quadrants.
                     (50
                         + (50 - minorIndexLengthPercentage)
-                        * (((-i / 60) + (1 / 4)) |> turns |> sin |> (*) -1)
+                        * (clockPosition |> sin |> (*) -1)
                     )
                     model
             )
@@ -589,20 +591,16 @@ viewAnalogClockHourHand model =
             15
 
         timeInMillis =
-            toHour model.zone model.time * 60 * 60 * 1000 + toMinute model.zone model.time * 60 * 1000
+            (toHour model.zone model.time * 60 * 60 * 1000 + toMinute model.zone model.time * 60 * 1000)
+            |> toFloat
 
         x1Percentage =
             50
 
         y1Percentage =
             50
-
-        hourHandPosition =
-            -- There are 43,200,000 milliseconds in an interval of 12 hours.
-            -- There are 10,800,000 milliseconds in an interval of 4 hours.
-            -- See `viewAnalogClockMinuteHand` for a more detailed
-            -- explanation of the purpose of these calculations.
-            timeInMillis |> modBy 43200000 |> toFloat |> (*) -1 |> (+) 10800000 |> flip (/) 43200000 |> turns
+        -- There are 43,200,000 milliseconds in an interval of 12 hours.
+        hourHandPosition = convertToClockPosition timeInMillis 43200000
     in
     [ viewLine hourHandLengthPercentage hourHandPosition x1Percentage y1Percentage model ]
 
@@ -621,25 +619,16 @@ viewAnalogClockMinuteHand model =
             30
 
         timeInMillis =
-            toMinute model.zone model.time * 60 * 1000 + toSecond model.zone model.time * 1000
+            (toMinute model.zone model.time * 60 * 1000 + toSecond model.zone model.time * 1000)
+            |> toFloat
 
         x1Percentage =
             50
 
         y1Percentage =
             50
-
-        minuteHandPosition =
-            -- 1/4 of an hour is 900,000 milliseconds.
-            -- There are 3,600,000 milliseconds in an hour.
-            -- Multiply the time in milliseconds by -1.
-            -- Add 1/4 of an hour.
-            -- Divide by the duration of an hour.
-            -- Convert to radians.
-            -- Note: these calculations are necessary because radians are calculated
-            -- by moving counter-clockwise around the unit circle starting at the
-            -- position x = 1, y = 0.
-            timeInMillis |> toFloat |> (*) -1 |> (+) 900000 |> flip (/) 3600000 |> turns
+        -- There are 3,600,000 milliseconds in an hour.
+        minuteHandPosition = convertToClockPosition timeInMillis 3600000
     in
     [ viewLine minuteHandLengthPercentage minuteHandPosition x1Percentage y1Percentage model ]
 
@@ -742,10 +731,7 @@ viewAnalogClockHourFaces model =
         getPos i trigFunc offset centerCoordinate =
             i
                 |> toFloat
-                |> (*) -1
-                |> (+) 3
-                |> flip (/) 12
-                |> turns
+                |> flip convertToClockPosition 12
                 |> trigFunc
                 |> (*) distanceFromCenter
                 |> (+) centerCoordinate
